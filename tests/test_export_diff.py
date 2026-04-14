@@ -72,7 +72,7 @@ def test_main_no_sessions(capsys):
     assert "No sessions available for diff export." in captured.out
 
 def test_main_invalid_choice(monkeypatch, tmpdir, sessions_dir, datetime_mock):
-    inputs = iter(["3"])
+    inputs = iter(["3", "1"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
     with pytest.raises(SystemExit) as exc_info:
         export_diff.main()
