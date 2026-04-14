@@ -70,34 +70,30 @@ def test_main_no_sessions(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "No sessions available for diff export." in captured.out
 
-def test_main_invalid_choice(monkeypatch, tmpdir, sessions_dir, datetime_mock):
+def test_main_invalid_choice(monkeypatch, tmpdir, capsys):
     inputs = iter(["3", "1"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
-    with pytest.raises(SystemExit) as exc_info:
-        export_diff.main()
-    assert exc_info.value.code == 1
+    export_diff.main()
+    captured = capsys.readouterr()
+    assert "Invalid choice. Please enter a number between 1 and 2." in captured.out
 
-def test_main_invalid_score(monkeypatch, tmpdir, sessions_dir, datetime_mock):
+def test_main_invalid_score(monkeypatch, tmpdir, capsys):
     inputs = iter(["1", "invalid"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
-    with pytest.raises(SystemExit) as exc_info:
-        export_diff.main()
-    assert exc_info.value.code == 1
+    export_diff.main()
+    captured = capsys.readouterr()
+    assert "Invalid input. Please enter a valid number." in captured.out
 
-def test_main_invalid_failure_tags(monkeypatch, tmpdir, sessions_dir, datetime_mock):
+def test_main_invalid_failure_tags(monkeypatch, tmpdir, capsys):
     inputs = iter(["1", "5"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
-    with pytest.raises(SystemExit) as exc_info:
-        export_diff.main()
-    assert exc_info.value.code == 1
+    export_diff.main()
+    captured = capsys.readouterr()
+    assert "Invalid input. Please enter a valid number." in captured.out
 
-def test_main_invalid_notes_summary(monkeypatch, tmpdir, sessions_dir, datetime_mock):
+def test_main_invalid_notes_summary(monkeypatch, tmpdir, capsys):
     inputs = iter(["1", "5", "invalid"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
-    with pytest.raises(SystemExit) as exc_info:
-        export_diff.main()
-    assert exc_info.value.code == 1
+    export_diff.main()
+    captured = capsys.readouterr()
+    assert "Invalid input. Please enter a valid number." in captured.out
