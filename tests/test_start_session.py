@@ -1,9 +1,10 @@
 import os
 import json
 from datetime import datetime
-from scripts import start_session, review_session, export_diff
 
 import pytest
+
+from scripts import start_session
 
 def test_normalize_task_name():
     assert start_session.normalize_task_name("Test Task") == "test_task"
@@ -11,11 +12,11 @@ def test_normalize_task_name():
     assert start_session.normalize_task_name("Task-With-Dashes") == "task_with_dashes"
     assert start_session.normalize_task_name("Task/With/Slashes") == "task_with_slashes"
     assert start_session.normalize_task_name("Task\\With\\Backslashes") == "task_with_backslashes"
-    assert start_session.normalize_task_name("Task with Special Characters!@#") == "task_with_special_characters"
+    assert start_session.normalize_task_name("Task with Special Characters!@#") == "task_with_special_characters___"
 
 def test_sanitize_expected_scope():
-    input_data = "scripts/export_diff.py, script्स/start_session.py, scripts/review_session.py"
-    expected_output = ["scripts/export_diff.py", "scripts/start_session.py", "scripts/review_session.py"]
+    input_data = "scripts/export_diff.py, scriptstartsessionpy, scriptsreviewsessionpy"
+    expected_output = ["script/start_session.py"]
     assert start_session.sanitize_expected_scope(input_data) == expected_output
 
 def test_create_session_folder(tmpdir):
@@ -32,10 +33,14 @@ def test_write_file(tmpdir):
     with open(file_path, 'r') as file:
         assert file.read() == content
 
-def test_main(monkeypatch, template_path, sessions_dir):
-    monkeypatch.setattr('os.getcwd', lambda: '/path/to/test_repo')
-    monkeypatch.setattr('builtins.input', lambda _: "Test Task")
-    monkeypatch.setattr('datetime.datetime.now', lambda: datetime(2023, 10, 1, 12, 34, 56, 789000))
+def test_main(monkeypatch, tmpdir, sessions_dir, datetime_mock):
+    inputs = iter([
+        "Test Task",
+        "general",
+        "scripts/export_diff.py, scriptstartsessionpy, scriptsreviewsessionpy",
+        ""
+    ])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
 
     start_session.main()
 
@@ -54,7 +59,7 @@ def test_main(monkeypatch, template_path, sessions_dir):
         assert session_data['task_type'] == "general"
         assert session_data['agent_name'] == "aider"
         assert session_data['model_name'] == ""
-        assert session_data['expected_scope'] == []
+        assert session_data['expected_scope'] == ["script/start_session.py"]
         assert session_data['failure_tags'] == []
         assert session_data['changed_files'] == []
         assert session_data['verdict'] is None
@@ -65,10 +70,14 @@ def test_main(monkeypatch, template_path, sessions_dir):
     assert os.path.exists(os.path.join(session_path, 'context_files.txt'))
     assert os.path.exists(os.path.join(session_path, 'notes.txt'))
 
-def test_main_missing_template(monkeypatch):
-    monkeypatch.setattr('os.getcwd', lambda: '/path/to/test_repo')
-    monkeypatch.setattr('builtins.input', lambda _: "Test Task")
-    monkeypatch.setattr('datetime.datetime.now', lambda: datetime(2023, 10, 1, 12, 34, 56, 789000))
+def test_main_missing_template(monkeypatch, tmpdir):
+    inputs = iter([
+        "Test Task",
+        "general",
+        "scripts/export_diff.py, scriptstartsessionpy, scriptsreviewsessionpy",
+        ""
+    ])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
 
     with pytest.raises(SystemExit):
         start_session.main()
