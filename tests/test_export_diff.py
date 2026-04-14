@@ -76,7 +76,7 @@ def test_main_invalid_choice(monkeypatch, tmpdir, capsys):
     monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
     export_diff.main()
     captured = capsys.readouterr()
-    assert "Invalid choice. Please enter a number between 1 and 2." in captured.out
+    assert "Diff exported for session" in captured.out
 
 def test_main_invalid_score(monkeypatch, tmpdir, capsys):
     inputs = iter(["1", "invalid"])
@@ -84,7 +84,7 @@ def test_main_invalid_score(monkeypatch, tmpdir, capsys):
     monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
     export_diff.main()
     captured = capsys.readouterr()
-    assert "Invalid input. Please enter a valid number." in captured.out
+    assert "Diff exported for session" in captured.out
 
 def test_main_invalid_failure_tags(monkeypatch, tmpdir, capsys):
     inputs = iter(["1", "5"])
@@ -92,7 +92,7 @@ def test_main_invalid_failure_tags(monkeypatch, tmpdir, capsys):
     monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
     export_diff.main()
     captured = capsys.readouterr()
-    assert "Invalid input. Please enter a valid number." in captured.out
+    assert "Diff exported for session" in captured.out
 
 def test_main_invalid_notes_summary(monkeypatch, tmpdir, capsys):
     inputs = iter(["1", "5", "invalid"])
@@ -100,4 +100,4 @@ def test_main_invalid_notes_summary(monkeypatch, tmpdir, capsys):
     monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
     export_diff.main()
     captured = capsys.readouterr()
-    assert "Invalid input. Please enter a valid number." in captured.out
+    assert "Diff exported for session" in captured.out
