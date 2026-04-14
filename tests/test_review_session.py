@@ -81,11 +81,10 @@ def test_main(monkeypatch, tmpdir, sessions_dir):
 
 def test_main_no_sessions(monkeypatch, capsys):
     monkeypatch.setattr(review_session, "load_sessions", lambda x: [])
-    with pytest.raises(SystemExit) as exc_info:
-        review_session.main()
-    assert exc_info.value.code == 1
+    review_session.main()
     captured = capsys.readouterr()
     assert "No sessions available for review." in captured.out
+    assert captured.err == ""
 
 def test_main_invalid_choice(monkeypatch, tmpdir, sessions_dir):
     inputs = iter(["3", "1"])
