@@ -87,6 +87,7 @@ def test_main(monkeypatch, capsys):
     inputs = iter(["1", "accepted", "3", "", ""])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
     monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1', 'task_type': 'test', 'repo_name': 'aider-learning-lab', 'expected_scope': [], 'verdict': None, 'score': None, 'failure_tags': [], 'notes_summary': ""})])
+    monkeypatch.setattr(review_session, "update_session", lambda *args, **kwargs: None)
     review_session.main()
 
 def test_main_no_sessions(monkeypatch, capsys):
@@ -100,22 +101,26 @@ def test_main_invalid_choice(monkeypatch, tmpdir, sessions_dir):
     inputs = iter(["3", "1", "accepted", "3", "", ""])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
     monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1', 'task_type': 'test', 'repo_name': 'aider-learning-lab', 'expected_scope': [], 'verdict': None, 'score': None, 'failure_tags': [], 'notes_summary': ""})])
+    monkeypatch.setattr(review_session, "update_session", lambda *args, **kwargs: None)
     review_session.main()
 
 def test_main_invalid_score(monkeypatch, tmpdir, sessions_dir):
-    inputs = iter(["1", "bad", "3", "", ""])
+    inputs = iter(["1", "bad", "accepted", "3", "", ""])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
     monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1', 'task_type': 'test', 'repo_name': 'aider-learning-lab', 'expected_scope': [], 'verdict': None, 'score': None, 'failure_tags': [], 'notes_summary': ""})])
+    monkeypatch.setattr(review_session, "update_session", lambda *args, **kwargs: None)
     review_session.main()
 
 def test_main_invalid_failure_tags(monkeypatch, tmpdir, sessions_dir):
     inputs = iter(["1", "accepted", "3", "", ""])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
     monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1', 'task_type': 'test', 'repo_name': 'aider-learning-lab', 'expected_scope': [], 'verdict': None, 'score': None, 'failure_tags': [], 'notes_summary': ""})])
+    monkeypatch.setattr(review_session, "update_session", lambda *args, **kwargs: None)
     review_session.main()
 
 def test_main_invalid_notes_summary(monkeypatch, tmpdir, sessions_dir):
     inputs = iter(["1", "accepted", "3", "", ""])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
     monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1', 'task_type': 'test', 'repo_name': 'aider-learning-lab', 'expected_scope': [], 'verdict': None, 'score': None, 'failure_tags': [], 'notes_summary': ""})])
+    monkeypatch.setattr(review_session, "update_session", lambda *args, **kwargs: None)
     review_session.main()
