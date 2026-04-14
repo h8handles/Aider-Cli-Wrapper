@@ -1,0 +1,16 @@
+{
+  "session_id": "",
+  "timestamp": "",
+  "repo_name": "",
+  "repo_path": "",
+  "task_title": "",
+  "task_type": "",
+  "agent_name": "",
+  "model_name": "",
+  "expected_scope": "",
+  "verdict": "",
+  "score": 0,
+  "failure_tags": [],
+  "changed_files": [],
+  "notes_summary": ""
+}

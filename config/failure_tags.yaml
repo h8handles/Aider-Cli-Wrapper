@@ -1,0 +1,7 @@
+- scope_drift
+- unrelated_file_changes
+- deleted_imports
+- created_unasked_files
+- invalid_syntax
+- partial_fix_only
+- ignored_instructions

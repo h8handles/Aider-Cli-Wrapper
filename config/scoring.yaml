@@ -1,0 +1,7 @@
+score_meanings:
+  5: "Accepted as is, clean and reusable"
+  4: "Accepted with minor edits, still a positive example"
+  3: "Partially correct, mixed quality"
+  2: "Mostly wrong, useful only for failure review"
+  1: "Bad output"
+  0: "Broken or unusable session"

@@ -1,0 +1,4 @@
+- preserve imports
+- avoid unasked file creation
+- prefer scoped changes
+- do not refactor unrelated files
