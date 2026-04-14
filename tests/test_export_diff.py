@@ -77,6 +77,7 @@ def test_main_invalid_choice(monkeypatch, tmpdir, sessions_dir, datetime_mock):
     with pytest.raises(SystemExit) as exc_info:
         export_diff.main()
     assert exc_info.value.code == 1
+    monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
 
 def test_main_invalid_score(monkeypatch, tmpdir, sessions_dir, datetime_mock):
     inputs = iter(["1", "invalid"])
@@ -84,6 +85,7 @@ def test_main_invalid_score(monkeypatch, tmpdir, sessions_dir, datetime_mock):
     with pytest.raises(SystemExit) as exc_info:
         export_diff.main()
     assert exc_info.value.code == 1
+    monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
 
 def test_main_invalid_failure_tags(monkeypatch, tmpdir, sessions_dir, datetime_mock):
     inputs = iter(["1", "5"])
@@ -91,6 +93,7 @@ def test_main_invalid_failure_tags(monkeypatch, tmpdir, sessions_dir, datetime_m
     with pytest.raises(SystemExit) as exc_info:
         export_diff.main()
     assert exc_info.value.code == 1
+    monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
 
 def test_main_invalid_notes_summary(monkeypatch, tmpdir, sessions_dir, datetime_mock):
     inputs = iter(["1", "5", "invalid"])
@@ -98,6 +101,7 @@ def test_main_invalid_notes_summary(monkeypatch, tmpdir, sessions_dir, datetime_
     with pytest.raises(SystemExit) as exc_info:
         export_diff.main()
     assert exc_info.value.code == 1
+    monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
 
 def test_main(monkeypatch, tmpdir, sessions_dir, datetime_mock):
     inputs = iter(["Test Task", "general", "scripts/export_diff.py, scriptstartsessionpy, scriptsreviewsessionpy"])
