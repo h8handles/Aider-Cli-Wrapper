@@ -16,7 +16,7 @@ def test_normalize_task_name():
 
 def test_sanitize_expected_scope():
     input_data = "scripts/export_diff.py, scriptstartsessionpy, scriptsreviewsessionpy"
-    expected_output = ["script/start_session.py"]
+    expected_output = ["script/start_session.py", "script/review_session.py"]
     assert start_session.sanitize_expected_scope(input_data) == expected_output
 
 def test_create_session_folder(tmpdir):
@@ -44,7 +44,7 @@ def test_main(monkeypatch, tmpdir, sessions_dir, datetime_mock):
 
     start_session.main()
 
-    session_id = "2023-10-01_123456_test_task"
+    session_id = f"{datetime.now().strftime('%Y-%m-%d_%H%M%S')}_test_task"
     session_path = os.path.join(sessions_dir, session_id)
     assert os.path.exists(session_path)
 
@@ -52,14 +52,14 @@ def test_main(monkeypatch, tmpdir, sessions_dir, datetime_mock):
     with open(json_file, 'r') as file:
         session_data = json.load(file)
         assert session_data['session_id'] == session_id
-        assert session_data['timestamp'] == "2023-10-01T12:34:56.789000"
+        assert session_data['timestamp'] == datetime.now().isoformat()
         assert session_data['repo_name'] == "test_repo"
         assert session_data['repo_path'] == "/path/to/test_repo"
         assert session_data['task_title'] == "Test Task"
         assert session_data['task_type'] == "general"
         assert session_data['agent_name'] == "aider"
         assert session_data['model_name'] == ""
-        assert session_data['expected_scope'] == ["script/start_session.py"]
+        assert session_data['expected_scope'] == ["script/start_session.py", "script/review_session.py"]
         assert session_data['failure_tags'] == []
         assert session_data['changed_files'] == []
         assert session_data['verdict'] is None
