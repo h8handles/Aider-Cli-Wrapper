@@ -39,6 +39,15 @@ def test_display_session_details(capsys, tmpdir, session_json):
     session_path, json_file = session_json
     with open(json_file, 'r') as file:
         session_data = json.load(file)
+    
+    # Rename the session folder
+    new_session_id = "renamed_session"
+    new_session_path = os.path.join(sessions_dir, new_session_id)
+    os.rename(os.path.join(sessions_dir, 'session_1'), new_session_path)
+
+    # Recompute the new JSON path inside the renamed folder
+    new_json_file = os.path.join(new_session_path, 'session.json')
+
     review_session.display_session_details(session_data)
     captured = capsys.readouterr()
     assert "Session ID: 2023-10-01_123456_test_session" in captured.out
