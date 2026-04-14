@@ -76,7 +76,7 @@ def test_update_session(monkeypatch, tmpdir, session_json):
 def test_main(monkeypatch, tmpdir, sessions_dir):
     inputs = iter(["1", "accepted", "3", "", ""])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'task_title': 'Task 1'})])
+    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1'})])
     review_session.main()
 
 def test_main_no_sessions(monkeypatch, capsys):
@@ -90,23 +90,23 @@ def test_main_no_sessions(monkeypatch, capsys):
 def test_main_invalid_choice(monkeypatch, tmpdir, sessions_dir):
     inputs = iter(["3", "1"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'task_title': 'Task 1'})])
+    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1'})])
     review_session.main()
 
 def test_main_invalid_score(monkeypatch, tmpdir, sessions_dir):
     inputs = iter(["1", "bad", "3", "", ""])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'task_title': 'Task 1'})])
+    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1'})])
     review_session.main()
 
 def test_main_invalid_failure_tags(monkeypatch, tmpdir, sessions_dir):
     inputs = iter(["1", "accepted", "3", "bad", ""])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'task_title': 'Task 1'})])
+    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1'})])
     review_session.main()
 
 def test_main_invalid_notes_summary(monkeypatch, tmpdir, sessions_dir):
     inputs = iter(["1", "accepted", "3", "", "bad"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'task_title': 'Task 1'})])
+    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1'})])
     review_session.main()
