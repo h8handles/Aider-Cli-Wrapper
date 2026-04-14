@@ -35,7 +35,7 @@ def test_get_user_choice(monkeypatch, tmpdir):
     assert session_id == 'session_2'
     assert session_data['task_title'] == 'Task 2'
 
-def test_verify_git_repository(monkeypatch):
+def test_verify_git_repository(monkeypatch, tmpdir):
     repo_path = tmpdir.mkdir('mock_repo')
     (repo_path / '.git').mkdir()
     monkeypatch.setattr(export_diff, "verify_git_repository", lambda x: True)

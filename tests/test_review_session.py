@@ -33,7 +33,7 @@ def test_get_user_choice(monkeypatch, tmpdir):
     assert session_id == 'session_2'
     assert session_data['task_title'] == 'Task 2'
 
-def test_display_session_details(capsys, tmpdir):
+def test_display_session_details(capsys, tmpdir, session_json):
     sessions_dir = tmpdir.mkdir('sessions')
     os.rename(session_json[0], os.path.join(sessions_dir, 'session_1'))
     session_path, json_file = session_json
@@ -60,7 +60,7 @@ def test_get_user_input(monkeypatch, tmpdir):
     assert failure_tags == []
     assert notes_summary == ""
 
-def test_update_session(monkeypatch, tmpdir):
+def test_update_session(monkeypatch, tmpdir, session_json):
     session_path, json_file = session_json
     inputs = iter(["accepted", "5", "", ""])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
