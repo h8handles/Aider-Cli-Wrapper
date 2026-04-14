@@ -33,7 +33,7 @@ def test_write_file(tmpdir):
     with open(file_path, 'r') as file:
         assert file.read() == content
 
-def test_main(monkeypatch, tmpdir, sessions_dir, datetime_mock):
+def test_main(monkeypatch, capsys):
     inputs = iter([
         "Test Task",
         "general",
@@ -45,19 +45,19 @@ def test_main(monkeypatch, tmpdir, sessions_dir, datetime_mock):
     start_session.main()
 
     # Assert that the sessions directory exists
-    assert os.path.exists(sessions_dir)
+    assert os.path.exists("sessions")
 
     # Assert that at least one session folder was created
-    session_folders = [f for f in os.listdir(sessions_dir) if os.path.isdir(os.path.join(sessions_dir, f))]
+    session_folders = [f for f in os.listdir("sessions") if os.path.isdir(os.path.join("sessions", f))]
     assert len(session_folders) > 0
 
     # Assert that the created session folder contains session.json
     for session_folder in session_folders:
-        session_path = os.path.join(sessions_dir, session_folder)
+        session_path = os.path.join("sessions", session_folder)
         json_file = os.path.join(session_path, 'session.json')
         assert os.path.exists(json_file)
 
-def test_main_missing_template(monkeypatch, tmpdir):
+def test_main_missing_template(monkeypatch, capsys):
     inputs = iter([
         "Test Task",
         "general",
