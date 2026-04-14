@@ -1,6 +1,11 @@
 import os
 import json
 from datetime import datetime
+from pathlib import Path
+import sys
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 import pytest
 
@@ -63,3 +68,30 @@ def mock_git_repo(tmpdir):
     repo_path = tmpdir.mkdir('mock_repo')
     (repo_path / '.git').mkdir()
     return str(repo_path)
+
+@pytest.fixture
+def datetime_mock(monkeypatch):
+    class MockDatetime:
+        @staticmethod
+        def now():
+            return datetime(2023, 10, 1, 12, 34, 56, 789000)
+    
+    monkeypatch.setattr('datetime.datetime', MockDatetime)
+
+@pytest.fixture
+def input_mock(monkeypatch):
+    inputs = ["Test Task", "general", "scripts/export_diff.py, script्स/start_session.py, scripts/review_session.py"]
+    index = 0
+
+    def mock_input(prompt):
+        nonlocal index
+        if prompt.startswith("Enter the task title"):
+            return inputs[index]
+        elif prompt.startswith("Enter the task type"):
+            return inputs[index + 1]
+        elif prompt.startswith("Enter the expected scope as a comma separated list"):
+            return inputs[index + 2]
+        else:
+            raise ValueError(f"Unexpected input prompt: {prompt}")
+    
+    monkeypatch.setattr('builtins.input', mock_input)

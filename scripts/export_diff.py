@@ -1,5 +1,6 @@
 import os
 import subprocess
+import json
 
 def load_sessions(sessions_dir):
     sessions = []
