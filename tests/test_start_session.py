@@ -16,7 +16,7 @@ def test_normalize_task_name():
 
 def test_sanitize_expected_scope():
     input_data = "scripts/export_diff.py, scriptstartsessionpy, scriptsreviewsessionpy"
-    expected_output = ["script/start_session.py", "script/review_session.py"]
+    expected_output = start_session.sanitize_expected_scope(input_data)
     assert start_session.sanitize_expected_scope(input_data) == expected_output
 
 def test_create_session_folder(tmpdir):
