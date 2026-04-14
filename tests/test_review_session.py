@@ -79,7 +79,8 @@ def test_main(monkeypatch, tmpdir, sessions_dir):
     monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'task_title': 'Task 1'})])
     review_session.main()
 
-def test_main_no_sessions(capsys):
+def test_main_no_sessions(monkeypatch, capsys):
+    monkeypatch.setattr(review_session, "load_sessions", lambda x: [])
     with pytest.raises(SystemExit) as exc_info:
         review_session.main()
     assert exc_info.value.code == 1
