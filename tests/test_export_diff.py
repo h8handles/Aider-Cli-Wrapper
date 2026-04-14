@@ -1,7 +1,5 @@
 import os
 import json
-from datetime import datetime
-import subprocess
 
 import pytest
 
@@ -65,7 +63,7 @@ def test_export_diff_empty(monkeypatch, tmpdir, session_json):
     with open(diff_file, 'r') as file:
         assert file.read() == ""
 
-def test_main_no_sessions(capsys):
+def test_main_no_sessions(monkeypatch, capsys):
     monkeypatch.setattr(export_diff, "load_sessions", lambda x: [])
     export_diff.main()
     captured = capsys.readouterr()
