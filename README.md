@@ -2,9 +2,11 @@
 
 ## Project Overview
 
-This project is a disciplined workflow wrapper around Aider.
+This project is a command line workflow tool built as a structured wrapper around Aider.
 
-It is designed to help you run Aider in a more controlled and reviewable way by adding:
+It is session driven, artifact and reporting aware, and designed with a future memory and recall roadmap in mind.
+
+It helps you run Aider in a more controlled and reviewable way by adding:
 
 - scoped sessions
 - prompt persistence
@@ -14,23 +16,23 @@ It is designed to help you run Aider in a more controlled and reviewable way by 
 - nightly reports
 - iterative prompt tuning
 
-The wrapper does not replace Aider. It adds structure around how you prepare, run, inspect, and review Aider sessions inside a repo.
+The wrapper does not replace Aider. It adds structure around how you prepare, run, inspect, review, and report on Aider sessions inside a repo through one primary CLI entry point.
 
 ## Features
 
-Current implemented scripts:
+Current implemented CLI workflows:
 
-- `scripts/start_session.py`
+- `create`
   Creates a new session folder and writes the base session artifacts without running Aider.
-- `scripts/create_and_run_session.py`
+- `create-run`
   Creates a new session and immediately runs Aider for that session.
-- `scripts/run_aider_session.py`
+- `run`
   Runs Aider for an existing session and captures execution artifacts.
-- `scripts/review_session.py`
+- `review`
   Lets you review a completed session with a verdict, score, failure tags, and notes.
-- `scripts/export_diff.py`
+- `export-diff`
   Exports the current git diff for a selected session and records changed files into session metadata.
-- `scripts/nightly_report.py`
+- `report`
   Generates a markdown report summarizing reviewed and unreviewed sessions.
 
 ## Installation
@@ -75,27 +77,36 @@ That config is passed to Aider by the current run path.
 
 ## Quick Start
 
-### Create and Run a New Session
-
-Use this when you want the wrapper to create a session and immediately launch Aider:
-
 ```powershell
-python scripts/create_and_run_session.py
+python main.py create
+python main.py create-run
+python main.py run
+python main.py review
+python main.py export-diff
+python main.py report
 ```
 
-You will be prompted for:
+Run this to see CLI help:
+
+```powershell
+python main.py --help
+```
+
+For session creation commands, you will be prompted for:
 
 - task title
 - task type
 - expected scope as a comma-separated list of files
 - model name
 
-### Run an Existing Session
-
-Use this when the session already exists and you want to launch Aider for it:
+You can also provide some values directly on the command line:
 
 ```powershell
-python scripts/run_aider_session.py
+python main.py create --task-title "Tighten run path validation" --task-type bugfix --scope "scripts/run_aider_session.py, scripts/start_session.py" --model gpt-4.1
+python main.py create-run --task-title "Fix report wording"
+python main.py run --session-id 2026-04-14_173119_test_task --model gpt-4.1
+python main.py review --session-id 2026-04-14_173119_test_task
+python main.py export-diff --session-id 2026-04-14_173119_test_task
 ```
 
 ### Create a Session Without Running Aider
@@ -103,25 +114,41 @@ python scripts/run_aider_session.py
 Use this when you want to prepare a session first and run it later:
 
 ```powershell
-python scripts/start_session.py
+python main.py create
+```
+
+### Create and Run a New Session
+
+Use this when you want the wrapper to create a session and immediately launch Aider:
+
+```powershell
+python main.py create-run
+```
+
+### Run an Existing Session
+
+Use this when the session already exists and you want to launch Aider for it:
+
+```powershell
+python main.py run
 ```
 
 ### Review a Session
 
 ```powershell
-python scripts/review_session.py
+python main.py review
 ```
 
 ### Export a Diff
 
 ```powershell
-python scripts/export_diff.py
+python main.py export-diff
 ```
 
 ### Generate the Nightly Report
 
 ```powershell
-python scripts/nightly_report.py
+python main.py report
 ```
 
 ## Workflow Example
@@ -131,7 +158,7 @@ This is the current end to end workflow for one task.
 ### 1. Create a Task and Run Aider
 
 ```powershell
-python scripts/create_and_run_session.py
+python main.py create-run
 ```
 
 Example answers:
@@ -156,7 +183,7 @@ These show the command used, run timing, exit code, and raw output from Aider.
 ### 3. Review the Result
 
 ```powershell
-python scripts/review_session.py
+python main.py review
 ```
 
 Choose the session and record:
@@ -169,7 +196,7 @@ Choose the session and record:
 ### 4. Export the Patch
 
 ```powershell
-python scripts/export_diff.py
+python main.py export-diff
 ```
 
 This writes `diff.patch` into the session folder and records changed files back into `session.json`.
@@ -177,7 +204,7 @@ This writes `diff.patch` into the session folder and records changed files back 
 ### 5. Generate the Nightly Report
 
 ```powershell
-python scripts/nightly_report.py
+python main.py report
 ```
 
 This updates:
@@ -188,15 +215,21 @@ reports/nightly_report.md
 
 ## Project Structure
 
-### `scripts/`
+### `main.py`
 
-Contains the wrapper’s workflow scripts:
+Contains the primary command line entry point for the wrapper.
+
+This is the main launch surface for:
 
 - session creation
 - session execution
 - review
 - diff export
 - reporting
+
+### `scripts/`
+
+Contains the underlying workflow modules used by the CLI entry point.
 
 ### `sessions/`
 
@@ -214,7 +247,7 @@ Contains the base JSON template used for session metadata.
 
 ### `tests/`
 
-Contains the current automated test suite for the wrapper scripts.
+Contains the current automated test suite for the wrapper.
 
 ## Session Artifacts
 
@@ -268,7 +301,7 @@ Raw stderr captured from the Aider process.
 
 ### `diff.patch`
 
-Optional artifact produced by `export_diff.py`.
+Optional artifact produced by `python main.py export-diff`.
 
 This contains the current git diff at the time of export.
 
@@ -281,118 +314,3 @@ This contains the current git diff at the time of export.
 - Use `aider_stdout.txt` and `aider_stderr.txt` when diagnosing a bad run.
 - Export diffs for sessions you want to inspect or compare later.
 - Use nightly reports to identify repeated failure tags and improve future prompts.
-
-## Overall Vision and Long Term Plan
-
-The long term goal of this wrapper is to evolve from a session runner into a **persistent AI engineering workflow system** built around memory, recall, and iterative improvement.
-
-Today, the wrapper provides disciplined session execution and review around Aider.
-
-The broader plan is to transform each coding session into reusable engineering memory.
-
-### Session Memory
-
-Every session already acts as a memory unit.
-
-Each session stores:
-
-- task objective
-- scoped files
-- prompt history
-- execution artifacts
-- diffs
-- review verdicts
-- failure tags
-- notes
-
-Over time, this creates a searchable history of:
-
-- what problems were worked
-- what prompts succeeded
-- what prompts failed
-- what files were repeatedly involved
-- what model performed best
-
-This is the foundation for long term recall.
-
-### Prompt Recall and Reuse
-
-A major planned feature is prompt recall.
-
-The system should eventually be able to look at prior successful sessions and surface:
-
-- similar bugfix prompts
-- successful feature implementation prompts
-- common refactor instructions
-- file scope patterns that worked well
-
-This allows future sessions to reuse proven prompt structures instead of reinventing prompts every time.
-
-Example future use case:
-
-> “Find previous sessions involving WHOIS failures and reuse the highest scoring prompt.”
-
-This will help reduce repeated bad runs and improve accuracy.
-
-### Failure Memory
-
-Another major goal is persistent failure memory.
-
-The wrapper should eventually track repeated failure patterns such as:
-
-- no code changes made
-- wrong file modified
-- broad refactor drift
-- syntax breakages
-- ignored scope
-- prompt misunderstanding
-
-This can later be used as a preflight warning system before launching Aider.
-
-Example:
-
-> “This task resembles 4 previously failed multi-file prompts. Recommend narrowing scope.”
-
-This directly supports improving run accuracy.
-
-### File and Code Recall
-
-Long term, sessions should support recall of recurring file relationships.
-
-For example:
-
-- `intel/views.py` often changes with `services/whois_enrichment.py`
-- UI tasks frequently involve templates and CSS together
-- certain scripts often break together
-
-This allows smarter scope recommendations for future runs.
-
-### Report Driven Learning
-
-Nightly reports are intended to become a learning system rather than only a summary report.
-
-Future reports should help answer questions like:
-
-- What prompts are most successful?
-- Which model performs best for bugfixes?
-- Which files have the highest failure rate?
-- What failure tags are increasing over time?
-
-The goal is continuous improvement of local AI coding workflows.
-
-### Long Term Direction
-
-The long term vision is:
-
-**session history → structured memory → recall → smarter future prompts**
-
-The wrapper is being designed to reduce repeated bad runs by learning from previous sessions and improving prompt discipline over time.
-
-## Roadmap
-
-Known next improvements for the wrapper:
-
-- consolidate the workflow into a single primary entry point.
-- automatic diff export after runs
-- stronger validation for session inputs and scope paths
-- richer reporting based on run artifacts and review outcomes
