@@ -1,89 +1,99 @@
-import os
-import json
+from collections import Counter
 from datetime import datetime
+from pathlib import Path
 
-def load_sessions(sessions_dir):
-    sessions = []
-    for entry in os.listdir(sessions_dir):
-        session_path = os.path.join(sessions_dir, entry)
-        if os.path.isdir(session_path) and os.path.exists(os.path.join(session_path, 'session.json')):
-            with open(os.path.join(session_path, 'session.json'), 'r') as file:
-                sessions.append((entry, json.load(file)))
-    return sessions
+from scripts.session_utils import load_sessions as load_session_records, parse_simple_yaml_mapping
 
-def generate_report(sessions):
-    report = []
-    
-    # Report timestamp
-    report.append("# Nightly Report\n")
-    report.append(f"Generated on: {datetime.now()}\n\n")
-    
-    # Totals section
-    total_sessions = len(sessions)
-    reviewed_sessions_count = sum(1 for session in sessions if session[1]['verdict'])
-    unreviewed_sessions_count = total_sessions - reviewed_sessions_count
-    accepted_count = sum(1 for session in sessions if session[1]['verdict'] == 'accepted')
-    accepted_with_edits_count = sum(1 for session in sessions if session[1]['verdict'] == 'accepted_with_edits')
-    rejected_count = sum(1 for session in sessions if session[1]['verdict'] == 'rejected')
-    
-    report.append("## Totals\n")
-    report.append(f"- Total Sessions: {total_sessions}\n")
-    report.append(f"- Reviewed Sessions: {reviewed_sessions_count}\n")
-    report.append(f"- Unreviewed Sessions: {unreviewed_sessions_count}\n")
-    report.append(f"- Accepted: {accepted_count}\n")
-    report.append(f"- Accepted with Edits: {accepted_with_edits_count}\n")
-    report.append(f"- Rejected: {rejected_count}\n\n")
-    
-    # Average score
-    scores = [session[1]['score'] for session in sessions if session[1]['score']]
-    average_score = sum(scores) / len(scores) if scores else None
-    
-    report.append("## Average Score\n")
-    report.append(f"- Average Score: {average_score:.2f}" if average_score is not None else "- Average Score: N/A\n\n")
-    
-    # Top failure tags
-    failure_tags = [tag for session in sessions for tag in session[1]['failure_tags']]
-    failure_tag_counts = {}
-    for tag in failure_tags:
-        if tag in failure_tag_counts:
-            failure_tag_counts[tag] += 1
-        else:
-            failure_tag_counts[tag] = 1
-    
-    top_failure_tags = sorted(failure_tag_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-    
-    report.append("## Top Failure Tags\n")
-    if not top_failure_tags:
-        report.append("- No failure tags recorded.\n")
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+SESSIONS_DIR = ROOT_DIR / "sessions"
+REPORTS_DIR = ROOT_DIR / "reports"
+SCORING_PATH = ROOT_DIR / "config" / "scoring.yaml"
+
+
+def load_sessions(sessions_dir: str | Path):
+    return load_session_records(Path(sessions_dir))
+
+
+def format_average_score(scores: list[int]) -> str:
+    return f"{sum(scores) / len(scores):.2f}" if scores else "N/A"
+
+
+def generate_report(sessions) -> str:
+    score_meanings = parse_simple_yaml_mapping(SCORING_PATH)
+    session_records = [session for _, session in sessions]
+    reviewed_sessions = [session for session in session_records if session.verdict]
+    scores = [session.score for session in reviewed_sessions if session.score is not None]
+    failure_counts = Counter(tag for session in reviewed_sessions for tag in session.failure_tags)
+    low_scoring_sessions = [session for session in reviewed_sessions if session.score is not None and session.score <= 2]
+    scope_drift_sessions = [session for session in reviewed_sessions if "scope_drift" in session.failure_tags]
+
+    report = [
+        "# Nightly Report",
+        "",
+        f"Generated on: {datetime.now().isoformat(timespec='seconds')}",
+        "",
+        "## Totals",
+        f"- Total Sessions: {len(session_records)}",
+        f"- Reviewed Sessions: {len(reviewed_sessions)}",
+        f"- Unreviewed Sessions: {len(session_records) - len(reviewed_sessions)}",
+        f"- Accepted: {sum(1 for session in reviewed_sessions if session.verdict == 'accepted')}",
+        f"- Accepted with Edits: {sum(1 for session in reviewed_sessions if session.verdict == 'accepted_with_edits')}",
+        f"- Rejected: {sum(1 for session in reviewed_sessions if session.verdict == 'rejected')}",
+        "",
+        "## Quality Signals",
+        f"- Average Score: {format_average_score(scores)}",
+        f"- Sessions With Scope Drift: {len(scope_drift_sessions)}",
+        f"- Low-Scoring Sessions (<=2): {len(low_scoring_sessions)}",
+        "",
+        "## Score Legend",
+    ]
+
+    if score_meanings:
+        report.extend(f"- {score}: {meaning}" for score, meaning in sorted(score_meanings.items(), reverse=True))
     else:
-        for tag, count in top_failure_tags:
-            report.append(f"- {tag}: {count}\n")
-    
-    # Per-session summary table
-    report.append("\n## Per-Session Summary\n")
-    report.append("| Session ID | Task Title | Task Type | Verdict | Score | Notes Summary |\n")
-    report.append("|------------|------------|-----------|---------|-------|---------------|\n")
-    for session_id, session_data in sorted(sessions, key=lambda x: x[0], reverse=True):
-        verdict = session_data.get('verdict', 'unreviewed')
-        score = session_data.get('score', None)
-        notes_summary = session_data.get('notes_summary', '')
-        
-        report.append(f"| {session_id} | {session_data['task_title']} | {session_data['task_type']} | {verdict} | {score if score is not None else 'N/A'} | {notes_summary if notes_summary else 'N/A'} |\n")
-    
-    return '\n'.join(report)
+        report.append("- No score legend configured.")
 
-def main():
-    sessions_dir = 'sessions'
-    reports_dir = 'reports'
-    
-    if not os.path.exists(reports_dir):
-        os.makedirs(reports_dir)
-    
-    sessions = load_sessions(sessions_dir)
+    report.extend(["", "## Top Failure Tags"])
+    if not failure_counts:
+        report.append("- No failure tags recorded.")
+    else:
+        report.extend(f"- {tag}: {count}" for tag, count in failure_counts.most_common(5))
+
+    report.extend(["", "## Sessions Needing Attention"])
+    if not low_scoring_sessions:
+        report.append("- No low-scoring sessions.")
+    else:
+        for session in sorted(low_scoring_sessions, key=lambda item: (item.score, item.timestamp)):
+            # This keeps the report focused on sessions most useful for wrapper tuning.
+            report.append(f"- {session.session_id}: score={session.score}, verdict={session.verdict}, tags={', '.join(session.failure_tags) or 'none'}")
+
+    report.extend(
+        [
+            "",
+            "## Per-Session Summary",
+            "| Session ID | Task Title | Verdict | Score | Changed Files | Notes Summary |",
+            "|------------|------------|---------|-------|---------------|---------------|",
+        ]
+    )
+
+    for session_id, session in sessions:
+        changed_files = ", ".join(session.changed_files) if session.changed_files else "N/A"
+        notes_summary = session.notes_summary or "N/A"
+        report.append(
+            f"| {session_id} | {session.task_title} | {session.verdict or 'unreviewed'} | "
+            f"{session.score if session.score is not None else 'N/A'} | {changed_files} | {notes_summary} |"
+        )
+
+    return "\n".join(report) + "\n"
+
+
+def main() -> None:
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    sessions = load_sessions(SESSIONS_DIR)
     report_content = generate_report(sessions)
-    
-    with open(os.path.join(reports_dir, 'nightly_report.md'), 'w') as file:
-        file.write(report_content)
+    (REPORTS_DIR / "nightly_report.md").write_text(report_content, encoding="utf-8")
+
 
 if __name__ == "__main__":
     main()

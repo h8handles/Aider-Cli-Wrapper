@@ -1,70 +1,93 @@
-import os
 import json
-from datetime import datetime
+from pathlib import Path
 
 import pytest
 
 from scripts import start_session
 
+
 def test_normalize_task_name():
     assert start_session.normalize_task_name("Test Task") == "test_task"
-    assert start_session.normalize_task_name("Task with Spaces") == "task_with_spaces"
-    assert start_session.normalize_task_name("Task-With-Dashes") == "task_with_dashes"
     assert start_session.normalize_task_name("Task/With/Slashes") == "task_with_slashes"
-    assert start_session.normalize_task_name("Task\\With\\Backslashes") == "task_with_backslashes"
-    assert start_session.normalize_task_name("Task with Special Characters!@#") == "task_with_special_characters___"
+    assert start_session.normalize_task_name("!!!") == "task"
+
 
 def test_sanitize_expected_scope():
-    input_data = "scripts/export_diff.py, scriptstartsessionpy, scriptsreviewsessionpy"
-    expected_output = start_session.sanitize_expected_scope(input_data)
-    assert start_session.sanitize_expected_scope(input_data) == expected_output
+    input_data = r"scripts\export_diff.py, scripts/review_session.py, scripts/export_diff.py"
+    assert start_session.sanitize_expected_scope(input_data) == [
+        "scripts/export_diff.py",
+        "scripts/review_session.py",
+    ]
 
-def test_create_session_folder(tmpdir):
-    base_dir = str(tmpdir)
-    timestamp = datetime.now().isoformat()
-    session_id = f"{timestamp[:10]}_{timestamp[11:13]}{timestamp[14:16]}{timestamp[17:19]}_test_task"
-    session_path = start_session.create_session_folder(base_dir, session_id)
-    assert os.path.exists(session_path)
 
-def test_write_file(tmpdir):
-    file_path = tmpdir.join('test.txt')
-    content = "Test Content"
-    start_session.write_file(str(file_path), content)
-    with open(file_path, 'r') as file:
-        assert file.read() == content
+def test_create_session_folder(tmp_path):
+    session_path = start_session.create_session_folder(tmp_path, "2026-04-14_120000_test_task")
+    assert Path(session_path).exists()
 
-def test_main(monkeypatch, capsys):
-    inputs = iter([
+
+def test_write_file(tmp_path):
+    file_path = tmp_path / "test.txt"
+    start_session.write_file(file_path, "Test Content")
+    assert file_path.read_text(encoding="utf-8") == "Test Content"
+
+
+def test_load_template_missing_file(tmp_path):
+    with pytest.raises(SystemExit):
+        start_session.load_template(tmp_path / "missing.json")
+
+
+def test_build_session_record_includes_prompt_preview(monkeypatch):
+    monkeypatch.setattr(start_session, "load_rules", lambda: ["preserve imports", "prefer scoped changes"])
+    session = start_session.build_session_record(
+        task_title="Fix diff export",
+        task_type="bugfix",
+        expected_scope=["scripts/export_diff.py"],
+        model_name="gpt-4.1",
+    )
+
+    assert session.repo_name == Path(start_session.ROOT_DIR).name
+    assert "preserve imports" in session.prompt_preview
+    assert "scripts/export_diff.py" in session.prompt_preview
+
+
+def test_create_session_creates_session_files(tmp_path, monkeypatch):
+    template_path = tmp_path / "session_template.json"
+    template_path.write_text(json.dumps({"session_id": ""}), encoding="utf-8")
+
+    monkeypatch.setattr(start_session, "TEMPLATE_PATH", template_path)
+    monkeypatch.setattr(start_session, "SESSIONS_DIR", tmp_path / "sessions")
+    monkeypatch.setattr(start_session, "load_rules", lambda: ["prefer scoped changes"])
+
+    session_dir, session = start_session.create_session(
         "Test Task",
         "general",
-        "scripts/export_diff.py, scriptstartsessionpy, scriptsreviewsessionpy",
-        ""
-    ])
+        "scripts/export_diff.py, scripts/review_session.py",
+        "gpt-4.1",
+    )
+
+    assert session.task_title == "Test Task"
+    session_json = json.loads((session_dir / "session.json").read_text(encoding="utf-8"))
+    assert session_json["task_title"] == "Test Task"
+    assert session_json["expected_scope"] == ["scripts/export_diff.py", "scripts/review_session.py"]
+
+
+def test_main_creates_session_files(tmp_path, monkeypatch):
+    template_path = tmp_path / "session_template.json"
+    template_path.write_text(json.dumps({"session_id": ""}), encoding="utf-8")
+
+    inputs = iter(["Test Task", "general", "scripts/export_diff.py, scripts/review_session.py", "gpt-4.1"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    monkeypatch.setattr(start_session, "TEMPLATE_PATH", template_path)
+    monkeypatch.setattr(start_session, "SESSIONS_DIR", tmp_path / "sessions")
+    monkeypatch.setattr(start_session, "load_rules", lambda: ["prefer scoped changes"])
 
     start_session.main()
 
-    # Assert that the sessions directory exists
-    assert os.path.exists("sessions")
+    created_sessions = list((tmp_path / "sessions").iterdir())
+    assert len(created_sessions) == 1
+    session_dir = created_sessions[0]
 
-    # Assert that at least one session folder was created
-    session_folders = [f for f in os.listdir("sessions") if os.path.isdir(os.path.join("sessions", f))]
-    assert len(session_folders) > 0
-
-    # Assert that the created session folder contains session.json
-    for session_folder in session_folders:
-        session_path = os.path.join("sessions", session_folder)
-        json_file = os.path.join(session_path, 'session.json')
-        assert os.path.exists(json_file)
-
-def test_main_missing_template(monkeypatch, capsys):
-    inputs = iter([
-        "Test Task",
-        "general",
-        "scripts/export_diff.py, scriptstartsessionpy, scriptsreviewsessionpy",
-        ""
-    ])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-
-    with pytest.raises(SystemExit):
-        start_session.main()
+    session_json = json.loads((session_dir / "session.json").read_text(encoding="utf-8"))
+    assert session_json["task_title"] == "Test Task"
+    assert session_json["expected_scope"] == ["scripts/export_diff.py", "scripts/review_session.py"]
+    assert "prefer scoped changes" in (session_dir / "prompt.txt").read_text(encoding="utf-8")

@@ -1,95 +1,118 @@
-import os
-import json
 from datetime import datetime
+from pathlib import Path
 
-def load_template(template_path):
+from scripts.session_utils import (
+    SessionRecord,
+    build_prompt_preview,
+    ensure_directory,
+    normalize_scope_entries,
+    normalize_task_name,
+    parse_simple_yaml_list,
+    read_json,
+    save_session_record,
+)
+
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+TEMPLATE_PATH = ROOT_DIR / "templates" / "session_template.json"
+SESSIONS_DIR = ROOT_DIR / "sessions"
+RULES_PATH = ROOT_DIR / "config" / "global_rules.md"
+
+
+def load_template(template_path: Path = TEMPLATE_PATH) -> dict:
     try:
-        with open(template_path, 'r') as file:
-            return json.load(file)
+        return read_json(template_path)
     except FileNotFoundError:
         print(f"Error: Template file {template_path} not found.")
-        exit(1)
+        raise SystemExit(1) from None
 
-def normalize_task_name(task_title):
-    # Remove special characters and replace spaces with underscores
-    return ''.join(c if c.isalnum() or c == '_' else '_' for c in task_title).lower()
 
-def sanitize_expected_scope(expected_scope_input):
-    import re
+def sanitize_expected_scope(expected_scope_input: str) -> list[str]:
+    return normalize_scope_entries(expected_scope_input)
 
-    # Split by commas and trim whitespace
-    entries = [entry.strip() for entry in expected_scope_input.split(',')]
 
-    # Normalize repeated spaces
-    entries = [re.sub(r'\s+', ' ', entry) for entry in entries]
+def create_session_folder(base_dir: str | Path, session_id: str) -> str:
+    session_path = Path(base_dir) / session_id
+    session_path.mkdir(parents=True, exist_ok=False)
+    return str(session_path)
 
-    # Remove non-ASCII or unexpected Unicode characters
-    entries = [re.sub(r'[^a-zA-Z0-9_\-/\\.]', '', entry) for entry in entries]
 
-    # Convert backslashes to forward slashes
-    entries = [entry.replace('\\', '/') for entry in entries]
+def write_file(file_path: str | Path, content: str) -> None:
+    Path(file_path).write_text(content, encoding="utf-8")
 
-    # Discard empty entries
-    entries = [entry for entry in entries if entry]
 
-    return entries
+def load_rules() -> list[str]:
+    if not RULES_PATH.exists():
+        return []
 
-def create_session_folder(base_dir, session_id):
-    session_path = os.path.join(base_dir, session_id)
-    try:
-        os.makedirs(session_path)
-        return session_path
-    except FileExistsError:
-        print(f"Error: Session folder {session_path} already exists.")
-        exit(1)
+    # This extracts checklist bullets so the wrapper can feed aider a stable guardrail prompt.
+    return parse_simple_yaml_list(RULES_PATH)
 
-def write_file(file_path, content):
-    with open(file_path, 'w') as file:
-        file.write(content)
 
-def main():
-    template = load_template('templates/session_template.json')
+def build_session_record(task_title: str, task_type: str, expected_scope: list[str], model_name: str) -> SessionRecord:
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    repo_path = ROOT_DIR.resolve()
+    session_id = f"{timestamp[:10]}_{timestamp[11:13]}{timestamp[14:16]}{timestamp[17:19]}_{normalize_task_name(task_title)}"
+    prompt_preview = build_prompt_preview(expected_scope, load_rules())
 
-    repo_name = os.path.basename(os.getcwd())
-    repo_path = os.getcwd()
+    return SessionRecord(
+        session_id=session_id,
+        timestamp=timestamp,
+        repo_name=repo_path.name,
+        repo_path=str(repo_path),
+        task_title=task_title,
+        task_type=task_type or "general",
+        agent_name="aider",
+        model_name=model_name,
+        expected_scope=expected_scope,
+        verdict=None,
+        score=None,
+        failure_tags=[],
+        changed_files=[],
+        notes_summary="",
+        prompt_preview=prompt_preview,
+        last_run_command=[],
+        last_run_exit_code=None,
+        last_run_started_at="",
+        last_run_finished_at="",
+        last_run_duration_seconds=None,
+    )
+
+
+def initialize_session_files(session_path: Path, session: SessionRecord) -> None:
+    # These starter files make each session folder immediately usable by the wrapper and reviewer.
+    save_session_record(session_path, session)
+    write_file(session_path / "prompt.txt", session.prompt_preview)
+    write_file(session_path / "context_files.txt", "\n".join(session.expected_scope))
+    write_file(session_path / "notes.txt", "")
+
+
+def create_session(task_title: str, task_type: str, expected_scope_input: str, model_name: str) -> tuple[Path, SessionRecord]:
+    load_template()
+    expected_scope = sanitize_expected_scope(expected_scope_input)
+    session = build_session_record(task_title=task_title, task_type=task_type, expected_scope=expected_scope, model_name=model_name)
+
+    ensure_directory(SESSIONS_DIR)
+    session_path = Path(create_session_folder(SESSIONS_DIR, session.session_id))
+    initialize_session_files(session_path, session)
+
+    return session_path, session
+
+
+def prompt_for_session_inputs() -> tuple[str, str, str, str]:
     task_title = input("Enter the task title: ").strip()
     task_type = input("Enter the task type (optional, default is general): ").strip() or "general"
     expected_scope_input = input("Enter the expected scope as a comma separated list (optional): ").strip()
     model_name = input("Enter the model name (optional): ").strip()
+    return task_title, task_type, expected_scope_input, model_name
 
-    timestamp = datetime.now().isoformat()
-    session_id = f"{timestamp[:10]}_{timestamp[11:13]}{timestamp[14:16]}{timestamp[17:19]}_{normalize_task_name(task_title)}"
 
-    if not os.path.exists('sessions'):
-        os.makedirs('sessions')
-
-    session_path = create_session_folder('sessions', session_id)
-
-    expected_scope = sanitize_expected_scope(expected_scope_input)
-
-    template.update({
-        "session_id": session_id,
-        "timestamp": timestamp,
-        "repo_name": repo_name,
-        "repo_path": repo_path,
-        "task_title": task_title,
-        "task_type": task_type,
-        "agent_name": "aider",
-        "model_name": model_name,
-        "expected_scope": expected_scope,
-        "failure_tags": [],
-        "changed_files": [],
-        "verdict": None,
-        "score": None,
-        "notes_summary": ""
-    })
-
-    write_file(os.path.join(session_path, 'session.json'), json.dumps(template, indent=4))
-    write_file(os.path.join(session_path, 'prompt.txt'), "")
-    write_file(os.path.join(session_path, 'context_files.txt'), "")
-    write_file(os.path.join(session_path, 'notes.txt'), "")
+def main() -> None:
+    task_title, task_type, expected_scope_input, model_name = prompt_for_session_inputs()
+    session_path, _ = create_session(task_title, task_type, expected_scope_input, model_name)
 
     print(f"Session created at: {session_path}")
+
 
 if __name__ == "__main__":
     main()

@@ -1,97 +1,60 @@
-import os
 import json
-from datetime import datetime
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
+
+
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-import pytest
 
 @pytest.fixture
-def template_path(tmpdir):
-    template_content = {
-        "session_id": "",
-        "timestamp": "",
-        "repo_name": "",
-        "repo_path": "",
-        "task_title": "",
-        "task_type": "",
-        "agent_name": "",
-        "model_name": "",
-        "expected_scope": [],
-        "verdict": None,
-        "score": None,
-        "failure_tags": [],
-        "changed_files": [],
-        "notes_summary": ""
-    }
-    template_file = tmpdir.join('session_template.json')
-    with open(template_file, 'w') as file:
-        json.dump(template_content, file)
-    return str(template_file)
-
-@pytest.fixture
-def sessions_dir(tmpdir):
-    return str(tmpdir.mkdir('sessions'))
-
-@pytest.fixture
-def session_data():
+def session_payload():
     return {
         "session_id": "2023-10-01_123456_test_session",
-        "timestamp": "2023-10-01T12:34:56.789Z",
+        "timestamp": "2023-10-01T12:34:56",
         "repo_name": "test_repo",
-        "repo_path": "/path/to/test_repo",
+        "repo_path": str(ROOT_DIR),
         "task_title": "Test Task",
         "task_type": "general",
         "agent_name": "aider",
         "model_name": "",
-        "expected_scope": [],
+        "expected_scope": ["scripts/export_diff.py"],
         "verdict": None,
         "score": None,
         "failure_tags": [],
         "changed_files": [],
-        "notes_summary": ""
+        "notes_summary": "",
+        "prompt_preview": "Goal: keep aider focused on the requested task and review criteria.",
+        "last_run_command": [],
+        "last_run_exit_code": None,
+        "last_run_started_at": "",
+        "last_run_finished_at": "",
+        "last_run_duration_seconds": None,
     }
 
-@pytest.fixture
-def session_json(tmpdir, session_data):
-    session_path = tmpdir.mkdir('session_1')
-    json_file = session_path.join('session.json')
-    with open(json_file, 'w') as file:
-        json.dump(session_data, file)
-    return str(session_path), str(json_file)
 
 @pytest.fixture
-def mock_git_repo(tmpdir):
-    repo_path = tmpdir.mkdir('mock_repo')
-    (repo_path / '.git').mkdir()
-    return str(repo_path)
+def session_dir(tmp_path, session_payload):
+    target = tmp_path / "session_1"
+    target.mkdir()
+    (target / "session.json").write_text(json.dumps(session_payload), encoding="utf-8")
+    (target / "prompt.txt").write_text("Fix the selected file.", encoding="utf-8")
+    return target
+
 
 @pytest.fixture
-def datetime_mock(monkeypatch):
-    class MockDatetime:
-        @staticmethod
-        def now():
-            return datetime(2023, 10, 1, 12, 34, 56, 789000)
-    
-    monkeypatch.setattr('datetime.datetime', MockDatetime)
-
-@pytest.fixture
-def input_mock(monkeypatch):
-    inputs = ["Test Task", "general", "scripts/export_diff.py, script्स/start_session.py, scripts/review_session.py"]
-    index = 0
-
-    def mock_input(prompt):
-        nonlocal index
-        if prompt.startswith("Enter the task title"):
-            return inputs[index]
-        elif prompt.startswith("Enter the task type"):
-            return inputs[index + 1]
-        elif prompt.startswith("Enter the expected scope as a comma separated list"):
-            return inputs[index + 2]
-        else:
-            raise ValueError(f"Unexpected input prompt: {prompt}")
-    
-    monkeypatch.setattr('builtins.input', mock_input)
+def sessions_dir(tmp_path, session_payload):
+    target = tmp_path / "sessions"
+    target.mkdir()
+    for name in ("session_a", "session_b"):
+        session_dir = target / name
+        session_dir.mkdir()
+        payload = dict(session_payload)
+        payload["session_id"] = name
+        payload["task_title"] = f"Task for {name}"
+        (session_dir / "session.json").write_text(json.dumps(payload), encoding="utf-8")
+        (session_dir / "prompt.txt").write_text(f"Prompt for {name}", encoding="utf-8")
+    return target

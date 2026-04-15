@@ -1,103 +1,89 @@
-import os
 import json
 import subprocess
 
-import pytest
-
 from scripts import export_diff
 
-def test_load_sessions(tmpdir, session_json):
-    sessions_dir = tmpdir.mkdir('sessions')
-    os.rename(session_json[0], os.path.join(sessions_dir, 'session_1'))
-    loaded_sessions = export_diff.load_sessions(str(sessions_dir))
-    assert len(loaded_sessions) == 1
-    assert loaded_sessions[0][0] == 'session_1'
 
-def test_display_sessions(capsys):
-    sessions = [
-        ('session_1', {'task_title': 'Task 1'}),
-        ('session_2', {'task_title': 'Task 2'})
-    ]
-    export_diff.display_sessions(sessions)
+def test_load_sessions(sessions_dir):
+    loaded_sessions = export_diff.load_sessions(sessions_dir)
+    assert len(loaded_sessions) == 2
+
+
+def test_display_sessions(capsys, sessions_dir):
+    export_diff.display_sessions(export_diff.load_sessions(sessions_dir))
     captured = capsys.readouterr()
-    assert "1. session_1 - Task 1" in captured.out
-    assert "2. session_2 - Task 2" in captured.out
+    assert "1. session_b - Task for session_b" in captured.out
 
-def test_get_user_choice(monkeypatch, tmpdir):
-    sessions = [
-        ('session_1', {'task_title': 'Task 1'}),
-        ('session_2', {'task_title': 'Task 2'})
-    ]
-    inputs = iter(["2"])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+def test_get_user_choice(monkeypatch, sessions_dir):
+    sessions = export_diff.load_sessions(sessions_dir)
+    monkeypatch.setattr("builtins.input", lambda _: "2")
     session_id, session_data = export_diff.get_user_choice(sessions)
-    assert session_id == 'session_2'
-    assert session_data['task_title'] == 'Task 2'
+    assert session_id == "session_a"
+    assert session_data.task_title == "Task for session_a"
 
-def test_verify_git_repository(monkeypatch, tmpdir):
-    repo_path = tmpdir.mkdir('mock_repo')
-    (repo_path / '.git').mkdir()
-    monkeypatch.setattr(export_diff, "verify_git_repository", lambda x: True)
-    assert export_diff.verify_git_repository(str(repo_path))
 
-def test_export_diff(monkeypatch, tmpdir, session_json):
-    inputs = iter(["1"])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(export_diff, "load_sessions", lambda x: [('session_1', {'task_title': 'Task 1', 'repo_path': '/path/to/repo'})])
-    monkeypatch.setattr('subprocess.run', lambda *args, **kwargs: subprocess.CompletedProcess(args[0], returncode=0, stdout="Diff content"))
-    session_path, json_file = session_json
-    export_diff.export_diff(session_path, str(tmpdir))
-    diff_file = os.path.join(session_path, 'diff.patch')
-    assert os.path.exists(diff_file)
-    with open(diff_file, 'r') as file:
-        assert file.read() == "Diff content"
+def test_verify_git_repository(monkeypatch, tmp_path):
+    repo_path = tmp_path / "mock_repo"
+    repo_path.mkdir()
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], returncode=0, stdout="true"),
+    )
+    assert export_diff.verify_git_repository(repo_path)
 
-def test_export_diff_empty(monkeypatch, tmpdir, session_json):
-    inputs = iter(["1"])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(export_diff, "load_sessions", lambda x: [('session_1', {'task_title': 'Task 1', 'repo_path': '/path/to/repo'})])
-    monkeypatch.setattr('subprocess.run', lambda *args, **kwargs: subprocess.CompletedProcess(args[0], returncode=0, stdout=""))
-    session_path, json_file = session_json
-    export_diff.export_diff(session_path, str(tmpdir))
-    diff_file = os.path.join(session_path, 'diff.patch')
-    assert os.path.exists(diff_file)
-    with open(diff_file, 'r') as file:
-        assert file.read() == ""
 
-def test_main_no_sessions(monkeypatch, capsys):
-    monkeypatch.setattr(export_diff, "load_sessions", lambda x: [])
+def test_export_diff_updates_session_metadata(monkeypatch, session_dir):
+    session_data = export_diff.load_sessions(session_dir.parent)[0][1]
+
+    def fake_run(command, **kwargs):
+        if command[-2:] == ["--stat", "--patch"]:
+            return subprocess.CompletedProcess(command, returncode=0, stdout="diff --git a/file.py b/file.py")
+        if command[-1] == "--name-only":
+            return subprocess.CompletedProcess(command, returncode=0, stdout="file.py\nother.py\n")
+        raise AssertionError(f"Unexpected command: {command}")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    export_diff.export_diff(session_dir, "repo-path", session_data)
+
+    assert (session_dir / "diff.patch").read_text(encoding="utf-8") == "diff --git a/file.py b/file.py"
+    updated_data = json.loads((session_dir / "session.json").read_text(encoding="utf-8"))
+    assert updated_data["changed_files"] == ["file.py", "other.py"]
+
+
+def test_export_diff_empty(monkeypatch, capsys, session_dir):
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], returncode=0, stdout=""),
+    )
+    export_diff.export_diff(session_dir, "repo-path")
+    captured = capsys.readouterr()
+    assert "No changes detected" in captured.out
+
+
+def test_main_no_sessions(monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr(export_diff, "SESSIONS_DIR", tmp_path / "sessions")
+    (tmp_path / "sessions").mkdir()
     export_diff.main()
     captured = capsys.readouterr()
     assert "No sessions available for diff export." in captured.out
 
-def test_main_invalid_choice(monkeypatch, tmpdir, capsys):
-    inputs = iter(["3", "1"])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
-    export_diff.main()
-    captured = capsys.readouterr()
-    assert "Diff exported for session" in captured.out
 
-def test_main_invalid_score(monkeypatch, tmpdir, capsys):
-    inputs = iter(["1", "invalid"])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
-    export_diff.main()
-    captured = capsys.readouterr()
-    assert "Diff exported for session" in captured.out
+def test_main_exports_selected_session(monkeypatch, capsys, sessions_dir, tmp_path):
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    session_file = sessions_dir / "session_b" / "session.json"
+    payload = json.loads(session_file.read_text(encoding="utf-8"))
+    payload["repo_path"] = str(repo_path)
+    session_file.write_text(json.dumps(payload), encoding="utf-8")
 
-def test_main_invalid_failure_tags(monkeypatch, tmpdir, capsys):
-    inputs = iter(["1", "5"])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    monkeypatch.setattr("builtins.input", lambda _: "1")
+    monkeypatch.setattr(export_diff, "SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr(export_diff, "verify_git_repository", lambda _: True)
     monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
-    export_diff.main()
-    captured = capsys.readouterr()
-    assert "Diff exported for session" in captured.out
 
-def test_main_invalid_notes_summary(monkeypatch, tmpdir, capsys):
-    inputs = iter(["1", "5", "invalid"])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(export_diff, "export_diff", lambda *args, **kwargs: None)
     export_diff.main()
     captured = capsys.readouterr()
-    assert "Diff exported for session" in captured.out
+    assert "Diff exported for session session_b successfully." in captured.out

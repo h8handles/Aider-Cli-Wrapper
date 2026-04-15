@@ -1,126 +1,84 @@
-import os
 import json
-
-import pytest
 
 from scripts import review_session
 
-def test_load_sessions(tmpdir, session_json):
-    sessions_dir = tmpdir.mkdir('sessions')
-    os.rename(session_json[0], os.path.join(sessions_dir, 'session_1'))
-    loaded_sessions = review_session.load_sessions(str(sessions_dir))
-    assert len(loaded_sessions) == 1
-    assert loaded_sessions[0][0] == 'session_1'
 
-def test_display_sessions(capsys):
-    sessions = [
-        ('session_1', {'task_title': 'Task 1'}),
-        ('session_2', {'task_title': 'Task 2'})
-    ]
-    review_session.display_sessions(sessions)
+def test_load_sessions(sessions_dir):
+    loaded_sessions = review_session.load_sessions(sessions_dir)
+    assert [session_id for session_id, _ in loaded_sessions] == ["session_b", "session_a"]
+
+
+def test_display_sessions(capsys, sessions_dir):
+    review_session.display_sessions(review_session.load_sessions(sessions_dir))
     captured = capsys.readouterr()
-    assert "1. session_1 - Task 1" in captured.out
-    assert "2. session_2 - Task 2" in captured.out
+    assert "1. session_b - Task for session_b" in captured.out
+    assert "2. session_a - Task for session_a" in captured.out
 
-def test_get_user_choice(monkeypatch, tmpdir):
-    sessions = [
-        ('session_1', {'task_title': 'Task 1'}),
-        ('session_2', {'task_title': 'Task 2'})
-    ]
-    inputs = iter(["2"])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+def test_get_user_choice(monkeypatch, sessions_dir):
+    sessions = review_session.load_sessions(sessions_dir)
+    monkeypatch.setattr("builtins.input", lambda _: "2")
     session_id, session_data = review_session.get_user_choice(sessions)
-    assert session_id == 'session_2'
-    assert session_data['task_title'] == 'Task 2'
+    assert session_id == "session_a"
+    assert session_data.task_title == "Task for session_a"
 
-def test_display_session_details(capsys, tmpdir, session_json):
-    sessions_dir = tmpdir.mkdir('sessions')
-    os.rename(session_json[0], os.path.join(sessions_dir, 'session_1'))
-    session_path, json_file = session_json
-    
-    # Rename the session folder
-    new_session_id = "renamed_session"
-    new_session_path = os.path.join(sessions_dir, new_session_id)
-    os.rename(os.path.join(sessions_dir, 'session_1'), new_session_path)
 
-    # Recompute the new JSON path inside the renamed folder
-    new_json_file = os.path.join(new_session_path, 'session.json')
-
-    with open(new_json_file, 'r') as file:
-        session_data = json.load(file)
-    
+def test_display_session_details(capsys, session_dir):
+    session_data = review_session.load_sessions(session_dir.parent)[0][1]
     review_session.display_session_details(session_data)
     captured = capsys.readouterr()
     assert "Session ID: 2023-10-01_123456_test_session" in captured.out
-    assert "Task Title: Test Task" in captured.out
-    assert "Task Type: general" in captured.out
-    assert "Repo Name: test_repo" in captured.out
-    assert "Expected Scope: N/A" in captured.out
-    assert "Current Verdict: None" in captured.out
-    assert "Current Score: None" in captured.out
-    assert "Current Failure Tags: N/A" in captured.out
-    assert "Current Notes Summary: N/A" in captured.out
+    assert "Changed Files: N/A" in captured.out
 
-def test_get_user_input(monkeypatch, tmpdir):
-    inputs = iter(["accepted", "3", "", ""])
+
+def test_prompt_for_failure_tags_retries_invalid(monkeypatch):
+    inputs = iter(["bad_tag", "scope_drift, partial_fix_only"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    monkeypatch.setattr(review_session, "load_allowed_failure_tags", lambda: {"scope_drift", "partial_fix_only"})
+
+    assert review_session.prompt_for_failure_tags() == ["scope_drift", "partial_fix_only"]
+
+
+def test_get_user_input(monkeypatch):
+    inputs = iter(["accepted", "3", "scope_drift", "Needs tighter file scoping"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    monkeypatch.setattr(review_session, "load_allowed_failure_tags", lambda: {"scope_drift"})
+
     verdict, score, failure_tags, notes_summary = review_session.get_user_input()
-    assert verdict == "accepted"
-    assert score == 3
-    assert failure_tags == []
-    assert notes_summary == ""
+    assert (verdict, score, failure_tags, notes_summary) == (
+        "accepted",
+        3,
+        ["scope_drift"],
+        "Needs tighter file scoping",
+    )
 
-def test_update_session(monkeypatch, tmpdir, session_json):
-    session_path, json_file = session_json
-    inputs = iter(["accepted", "5", "", ""])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'task_title': 'Task 1'})])
-    review_session.update_session(session_path, "accepted", 5, [], "")
-    with open(json_file, 'r') as file:
-        updated_data = json.load(file)
-        assert updated_data['verdict'] == "accepted"
-        assert updated_data['score'] == 5
-        assert updated_data['failure_tags'] == []
-        assert updated_data['notes_summary'] == ""
 
-def test_main(monkeypatch, capsys):
-    inputs = iter(["1", "accepted", "3", "", ""])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1', 'task_type': 'test', 'repo_name': 'aider-learning-lab', 'expected_scope': [], 'verdict': None, 'score': None, 'failure_tags': [], 'notes_summary': ""})])
-    monkeypatch.setattr(review_session, "update_session", lambda *args, **kwargs: None)
-    review_session.main()
+def test_update_session(session_dir):
+    review_session.update_session(session_dir, "accepted", 5, ["scope_drift"], "Reviewed")
+    updated_data = json.loads((session_dir / "session.json").read_text(encoding="utf-8"))
+    assert updated_data["verdict"] == "accepted"
+    assert updated_data["score"] == 5
+    assert updated_data["failure_tags"] == ["scope_drift"]
+    assert updated_data["notes_summary"] == "Reviewed"
 
-def test_main_no_sessions(monkeypatch, capsys):
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [])
+
+def test_main_no_sessions(monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr(review_session, "SESSIONS_DIR", tmp_path / "missing")
     review_session.main()
     captured = capsys.readouterr()
-    assert "No sessions available for review." in captured.out
-    assert captured.err == ""
+    assert "Error: No sessions directory found" in captured.out
 
-def test_main_invalid_choice(monkeypatch, tmpdir, sessions_dir):
-    inputs = iter(["3", "1", "accepted", "3", "", ""])
+
+def test_main_updates_selected_session(monkeypatch, capsys, sessions_dir):
+    inputs = iter(["1", "accepted_with_edits", "4", "", "Looks good"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1', 'task_type': 'test', 'repo_name': 'aider-learning-lab', 'expected_scope': [], 'verdict': None, 'score': None, 'failure_tags': [], 'notes_summary': ""})])
-    monkeypatch.setattr(review_session, "update_session", lambda *args, **kwargs: None)
+    monkeypatch.setattr(review_session, "SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr(review_session, "load_allowed_failure_tags", lambda: {"scope_drift"})
+
     review_session.main()
 
-def test_main_invalid_score(monkeypatch, tmpdir, sessions_dir):
-    inputs = iter(["1", "bad", "accepted", "3", "", ""])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1', 'task_type': 'test', 'repo_name': 'aider-learning-lab', 'expected_scope': [], 'verdict': None, 'score': None, 'failure_tags': [], 'notes_summary': ""})])
-    monkeypatch.setattr(review_session, "update_session", lambda *args, **kwargs: None)
-    review_session.main()
-
-def test_main_invalid_failure_tags(monkeypatch, tmpdir, sessions_dir):
-    inputs = iter(["1", "accepted", "3", "", ""])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1', 'task_type': 'test', 'repo_name': 'aider-learning-lab', 'expected_scope': [], 'verdict': None, 'score': None, 'failure_tags': [], 'notes_summary': ""})])
-    monkeypatch.setattr(review_session, "update_session", lambda *args, **kwargs: None)
-    review_session.main()
-
-def test_main_invalid_notes_summary(monkeypatch, tmpdir, sessions_dir):
-    inputs = iter(["1", "accepted", "3", "", ""])
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-    monkeypatch.setattr(review_session, "load_sessions", lambda x: [('session_1', {'session_id': 'session_1', 'task_title': 'Task 1', 'task_type': 'test', 'repo_name': 'aider-learning-lab', 'expected_scope': [], 'verdict': None, 'score': None, 'failure_tags': [], 'notes_summary': ""})])
-    monkeypatch.setattr(review_session, "update_session", lambda *args, **kwargs: None)
-    review_session.main()
+    captured = capsys.readouterr()
+    assert "reviewed and updated successfully" in captured.out
+    updated_data = json.loads((sessions_dir / "session_b" / "session.json").read_text(encoding="utf-8"))
+    assert updated_data["verdict"] == "accepted_with_edits"
+    assert updated_data["score"] == 4

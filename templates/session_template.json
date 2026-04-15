@@ -7,10 +7,16 @@
   "task_type": "",
   "agent_name": "",
   "model_name": "",
-  "expected_scope": "",
-  "verdict": "",
-  "score": 0,
+  "expected_scope": [],
+  "verdict": null,
+  "score": null,
   "failure_tags": [],
   "changed_files": [],
-  "notes_summary": ""
+  "notes_summary": "",
+  "prompt_preview": "",
+  "last_run_command": [],
+  "last_run_exit_code": null,
+  "last_run_started_at": "",
+  "last_run_finished_at": "",
+  "last_run_duration_seconds": null
 }
