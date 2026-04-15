@@ -17,6 +17,7 @@ def session_payload():
         "timestamp": "2023-10-01T12:34:56",
         "repo_name": "test_repo",
         "repo_path": str(ROOT_DIR),
+        "baseline_commit_sha": "abc123def456",
         "task_title": "Test Task",
         "task_type": "general",
         "agent_name": "aider",

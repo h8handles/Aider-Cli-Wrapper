@@ -9,10 +9,12 @@ VERDICTS = ("accepted", "accepted_with_edits", "rejected")
 
 @dataclass
 class SessionRecord:
+    """Structured session metadata persisted to each session's ``session.json`` file."""
     session_id: str
     timestamp: str
     repo_name: str
     repo_path: str
+    baseline_commit_sha: str
     task_title: str
     task_type: str
     agent_name: str
@@ -33,11 +35,13 @@ class SessionRecord:
     # This keeps older session.json files usable while normalizing new writes.
     @classmethod
     def from_dict(cls, data: dict) -> "SessionRecord":
+        """Build a normalized session record from stored JSON data."""
         return cls(
             session_id=data.get("session_id", ""),
             timestamp=data.get("timestamp", ""),
             repo_name=data.get("repo_name", ""),
             repo_path=data.get("repo_path", ""),
+            baseline_commit_sha=(data.get("baseline_commit_sha") or "").strip(),
             task_title=data.get("task_title", ""),
             task_type=data.get("task_type", "general"),
             agent_name=data.get("agent_name", "aider"),
@@ -57,34 +61,41 @@ class SessionRecord:
         )
 
     def to_dict(self) -> dict:
+        """Convert the session record back to plain JSON-serializable data."""
         return asdict(self)
 
 
 def read_json(path: Path) -> dict:
+    """Read a UTF-8 JSON file and return its parsed object."""
     with path.open("r", encoding="utf-8") as file:
         return json.load(file)
 
 
 def write_json(path: Path, data: dict) -> None:
+    """Write JSON data with stable indentation and a trailing newline."""
     with path.open("w", encoding="utf-8") as file:
         json.dump(data, file, indent=2)
         file.write("\n")
 
 
 def ensure_directory(path: Path) -> Path:
+    """Create a directory tree if needed and return the resolved path object."""
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def load_session_record(session_dir: Path) -> SessionRecord:
+    """Load one session record from ``session.json`` inside a session directory."""
     return SessionRecord.from_dict(read_json(session_dir / "session.json"))
 
 
 def save_session_record(session_dir: Path, session: SessionRecord) -> None:
+    """Persist a session record back to the session's ``session.json`` file."""
     write_json(session_dir / "session.json", session.to_dict())
 
 
 def load_sessions(sessions_dir: Path) -> list[tuple[str, SessionRecord]]:
+    """Load all sessions from a sessions directory in reverse-sorted folder order."""
     sessions: list[tuple[str, SessionRecord]] = []
     if not sessions_dir.exists():
         return sessions
@@ -97,11 +108,13 @@ def load_sessions(sessions_dir: Path) -> list[tuple[str, SessionRecord]]:
 
 
 def normalize_task_name(task_title: str) -> str:
+    """Convert a task title into a filesystem-friendly slug fragment."""
     cleaned = "".join(character if character.isalnum() else "_" for character in task_title.lower())
     return cleaned.strip("_") or "task"
 
 
 def normalize_scope_entries(raw_scope: str | list[str]) -> list[str]:
+    """Normalize expected-scope or changed-file entries into clean relative paths."""
     entries = raw_scope.split(",") if isinstance(raw_scope, str) else raw_scope
     normalized: list[str] = []
 
@@ -118,6 +131,7 @@ def normalize_scope_entries(raw_scope: str | list[str]) -> list[str]:
 
 
 def normalize_tag_entries(raw_tags: str | list[str]) -> list[str]:
+    """Normalize review failure tags into lower-case underscore-separated values."""
     entries = raw_tags.split(",") if isinstance(raw_tags, str) else raw_tags
     normalized: list[str] = []
     for entry in entries:
@@ -128,6 +142,7 @@ def normalize_tag_entries(raw_tags: str | list[str]) -> list[str]:
 
 
 def parse_simple_yaml_list(path: Path) -> list[str]:
+    """Parse simple ``- item`` YAML lists used by the wrapper's config files."""
     items: list[str] = []
     if not path.exists():
         return items
@@ -140,6 +155,7 @@ def parse_simple_yaml_list(path: Path) -> list[str]:
 
 
 def parse_simple_yaml_mapping(path: Path) -> dict[int, str]:
+    """Parse a simple integer-to-string YAML mapping used for score legends."""
     mapping: dict[int, str] = {}
     if not path.exists():
         return mapping
@@ -157,6 +173,7 @@ def parse_simple_yaml_mapping(path: Path) -> dict[int, str]:
 
 
 def build_prompt_preview(expected_scope: list[str], rules: list[str]) -> str:
+    """Build the starter prompt text written into each new session folder."""
     lines = [
         "Goal: keep aider focused on the requested task and review criteria.",
         "Rules:",
@@ -170,9 +187,14 @@ def build_prompt_preview(expected_scope: list[str], rules: list[str]) -> str:
     return "\n".join(lines)
 
 
-def list_changed_files(repo_path: Path) -> list[str]:
+def list_changed_files(repo_path: Path, baseline_ref: str = "") -> list[str]:
+    """List changed files from git, optionally relative to a stored baseline ref."""
+    command = ["git", "-C", str(repo_path), "diff", "--name-only"]
+    if baseline_ref:
+        command.append(baseline_ref)
+
     result = subprocess.run(
-        ["git", "-C", str(repo_path), "diff", "--name-only"],
+        command,
         check=True,
         capture_output=True,
         text=True,

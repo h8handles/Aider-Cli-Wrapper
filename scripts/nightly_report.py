@@ -12,14 +12,17 @@ SCORING_PATH = ROOT_DIR / "config" / "scoring.yaml"
 
 
 def load_sessions(sessions_dir: str | Path):
+    """Load all saved sessions that should be included in the nightly report."""
     return load_session_records(Path(sessions_dir))
 
 
 def format_average_score(scores: list[int]) -> str:
+    """Format an average score for report output, or ``N/A`` when no scores exist."""
     return f"{sum(scores) / len(scores):.2f}" if scores else "N/A"
 
 
 def generate_report(sessions) -> str:
+    """Generate the markdown nightly report from the current session records."""
     score_meanings = parse_simple_yaml_mapping(SCORING_PATH)
     session_records = [session for _, session in sessions]
     reviewed_sessions = [session for session in session_records if session.verdict]
@@ -89,6 +92,7 @@ def generate_report(sessions) -> str:
 
 
 def main() -> None:
+    """Write the nightly markdown report to the reports directory."""
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     sessions = load_sessions(SESSIONS_DIR)
     report_content = generate_report(sessions)

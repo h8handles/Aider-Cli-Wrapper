@@ -11,6 +11,7 @@ from scripts import (
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the top-level CLI parser and register wrapper subcommands."""
     parser = argparse.ArgumentParser(
         prog="main.py",
         description="Aider wrapper command line tool.",
@@ -38,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def add_session_creation_arguments(parser: argparse.ArgumentParser) -> None:
+    """Attach the common session-creation flags to a subparser."""
     parser.add_argument("--task-title", help="Task title for the new session.")
     parser.add_argument("--task-type", help="Task type for the new session.")
     parser.add_argument("--scope", help="Expected scope as a comma separated list.")
@@ -45,6 +47,7 @@ def add_session_creation_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def prompt_with_default(prompt_text: str, default_value: str = "") -> str:
+    """Prompt for a value and return the provided input or a supplied default."""
     prompt_suffix = f" [{default_value}]" if default_value else ""
     entered_value = input(f"{prompt_text}{prompt_suffix}: ").strip()
     if entered_value:
@@ -53,6 +56,7 @@ def prompt_with_default(prompt_text: str, default_value: str = "") -> str:
 
 
 def resolve_session_creation_inputs(args: argparse.Namespace) -> tuple[str, str, str, str]:
+    """Resolve session-creation inputs from flags or interactive prompts."""
     if not any([args.task_title, args.task_type, args.scope, args.model]):
         return start_session.prompt_for_session_inputs()
 
@@ -70,12 +74,14 @@ def resolve_session_creation_inputs(args: argparse.Namespace) -> tuple[str, str,
 
 
 def normalize_exit_code(result) -> int:
+    """Normalize helper return values so command handlers always return an int."""
     if isinstance(result, int):
         return result
     return 0
 
 
 def find_selected_session(command_name: str, session_id: str | None, sessions):
+    """Resolve the target session by explicit id or by prompting from a session list."""
     if session_id:
         for loaded_session_id, session_data in sessions:
             if loaded_session_id == session_id:
@@ -95,6 +101,7 @@ def find_selected_session(command_name: str, session_id: str | None, sessions):
 
 
 def handle_create(args: argparse.Namespace) -> int:
+    """Create a new session folder and print a user-facing result message."""
     try:
         task_title, task_type, expected_scope_input, model_name = resolve_session_creation_inputs(args)
         session_path, _ = start_session.create_session(task_title, task_type, expected_scope_input, model_name)
@@ -112,6 +119,7 @@ def handle_create(args: argparse.Namespace) -> int:
 
 
 def handle_create_run(args: argparse.Namespace) -> int:
+    """Create a session and immediately run aider against that new session."""
     try:
         task_title, task_type, expected_scope_input, model_name = resolve_session_creation_inputs(args)
         session_path, session = start_session.create_session(task_title, task_type, expected_scope_input, model_name)
@@ -129,6 +137,7 @@ def handle_create_run(args: argparse.Namespace) -> int:
 
 
 def handle_run(args: argparse.Namespace) -> int:
+    """Run aider for an existing session after validating selection and inputs."""
     if not run_aider_session.SESSIONS_DIR.exists():
         print(f"Error: No sessions directory found at {run_aider_session.SESSIONS_DIR}.")
         return 2
@@ -152,6 +161,7 @@ def handle_run(args: argparse.Namespace) -> int:
 
 
 def handle_review(args: argparse.Namespace) -> int:
+    """Collect review input for a session and persist the updated review fields."""
     if not review_session.SESSIONS_DIR.exists():
         print(f"Error: No sessions directory found at {review_session.SESSIONS_DIR}.")
         return 2
@@ -174,6 +184,7 @@ def handle_review(args: argparse.Namespace) -> int:
 
 
 def handle_export_diff(args: argparse.Namespace) -> int:
+    """Export a selected session's diff artifact after validating repo state."""
     if not export_diff.SESSIONS_DIR.exists():
         print(f"Error: No sessions directory found at {export_diff.SESSIONS_DIR}.")
         return 2
@@ -207,10 +218,12 @@ def handle_export_diff(args: argparse.Namespace) -> int:
 
 
 def handle_report(_: argparse.Namespace) -> int:
+    """Generate the nightly report and normalize its return value for the CLI."""
     return normalize_exit_code(nightly_report.main())
 
 
 def run_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Dispatch parsed CLI arguments to the matching command handler."""
     if args.command is None:
         parser.print_help()
         return 0
@@ -233,6 +246,7 @@ def run_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse CLI arguments, run the selected command, and map interrupts to exit codes."""
     parser = build_parser()
     try:
         args = parser.parse_args(argv)

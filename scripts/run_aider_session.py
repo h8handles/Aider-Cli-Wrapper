@@ -14,15 +14,18 @@ DEFAULT_CONFIG_PATH = ROOT_DIR / ".aider.config.yaml"
 
 
 def load_sessions(sessions_dir: str | Path):
+    """Load all saved sessions available to the runner."""
     return load_session_records(Path(sessions_dir))
 
 
 def display_sessions(sessions) -> None:
+    """Print the available sessions in the order shown to the user."""
     for idx, (session_id, session_data) in enumerate(sessions, start=1):
         print(f"{idx}. {session_id} - {session_data.task_title}")
 
 
 def get_user_choice(sessions):
+    """Prompt until the user selects a valid session number from the displayed list."""
     while True:
         try:
             choice = int(input("Enter the number of the session to run with aider: "))
@@ -34,6 +37,7 @@ def get_user_choice(sessions):
 
 
 def resolve_aider_executable() -> str | None:
+    """Resolve the aider executable name on PATH, if one is installed."""
     for candidate in ("aider", "aider.exe", "aider.cmd"):
         resolved = shutil.which(candidate)
         if resolved:
@@ -42,6 +46,7 @@ def resolve_aider_executable() -> str | None:
 
 
 def get_message_argument(session_dir: Path, session_data) -> list[str]:
+    """Return the aider prompt argument, preferring a saved prompt file when present."""
     prompt_path = session_dir / "prompt.txt"
     if prompt_path.exists():
         prompt_text = prompt_path.read_text(encoding="utf-8").strip()
@@ -56,6 +61,7 @@ def get_message_argument(session_dir: Path, session_data) -> list[str]:
 
 
 def validate_expected_scope(repo_path: Path, expected_scope: list[str]) -> list[str]:
+    """Return any expected-scope paths that do not currently exist in the repo."""
     missing_files: list[str] = []
     for relative_path in expected_scope:
         if not (repo_path / relative_path).exists():
@@ -64,6 +70,7 @@ def validate_expected_scope(repo_path: Path, expected_scope: list[str]) -> list[
 
 
 def build_aider_command(aider_executable: str, config_path: Path, session_dir: Path, session_data, model_override: str = "") -> list[str]:
+    """Build the aider command for a session, including config, model, prompt, and scope."""
     if not config_path.exists():
         raise FileNotFoundError(f"Required aider config file was not found: {config_path}")
 
@@ -78,6 +85,7 @@ def build_aider_command(aider_executable: str, config_path: Path, session_dir: P
 
 
 def save_run_artifacts(session_dir: Path, artifact_payload: dict, stdout_text: str, stderr_text: str) -> None:
+    """Persist raw aider run artifacts for later inspection and review."""
     # These files keep the raw aider invocation easy to inspect after the run finishes.
     (session_dir / "aider_run.json").write_text(json.dumps(artifact_payload, indent=2) + "\n", encoding="utf-8")
     (session_dir / "aider_stdout.txt").write_text(stdout_text, encoding="utf-8")
@@ -85,6 +93,7 @@ def save_run_artifacts(session_dir: Path, artifact_payload: dict, stdout_text: s
 
 
 def run_session(session_dir: Path, session_data, model_override: str = "") -> int:
+    """Run aider for one session and persist both raw artifacts and session run metadata."""
     repo_path = Path(session_data.repo_path)
     if not repo_path.exists():
         print(f"Error: Repository path does not exist: {repo_path}")
@@ -142,6 +151,7 @@ def run_session(session_dir: Path, session_data, model_override: str = "") -> in
     session_data.last_run_started_at = started_at
     session_data.last_run_finished_at = finished_at
     session_data.last_run_duration_seconds = duration_seconds
+    # Persist the override so later runs default to the model that actually worked.
     if model_override.strip():
         session_data.model_name = model_override.strip()
     save_session_record(session_dir, session_data)
@@ -154,6 +164,7 @@ def run_session(session_dir: Path, session_data, model_override: str = "") -> in
 
 
 def main() -> int:
+    """Run the interactive aider flow for an existing saved session."""
     if not SESSIONS_DIR.exists():
         print(f"Error: No sessions directory found at {SESSIONS_DIR}.")
         return 2

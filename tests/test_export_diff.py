@@ -36,11 +36,12 @@ def test_verify_git_repository(monkeypatch, tmp_path):
 
 def test_export_diff_updates_session_metadata(monkeypatch, session_dir):
     session_data = export_diff.load_sessions(session_dir.parent)[0][1]
+    monkeypatch.setattr(export_diff, "verify_git_commit", lambda repo_path, commit_sha: True)
 
     def fake_run(command, **kwargs):
-        if command[-2:] == ["--stat", "--patch"]:
+        if command[-3:] == ["--stat", "--patch", session_data.baseline_commit_sha]:
             return subprocess.CompletedProcess(command, returncode=0, stdout="diff --git a/file.py b/file.py")
-        if command[-1] == "--name-only":
+        if command[-2:] == ["--name-only", session_data.baseline_commit_sha]:
             return subprocess.CompletedProcess(command, returncode=0, stdout="file.py\nother.py\n")
         raise AssertionError(f"Unexpected command: {command}")
 
@@ -53,14 +54,28 @@ def test_export_diff_updates_session_metadata(monkeypatch, session_dir):
 
 
 def test_export_diff_empty(monkeypatch, capsys, session_dir):
+    session_data = export_diff.load_sessions(session_dir.parent)[0][1]
+    monkeypatch.setattr(export_diff, "verify_git_commit", lambda repo_path, commit_sha: True)
     monkeypatch.setattr(
         subprocess,
         "run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args[0], returncode=0, stdout=""),
     )
-    export_diff.export_diff(session_dir, "repo-path")
+    export_diff.export_diff(session_dir, "repo-path", session_data)
     captured = capsys.readouterr()
     assert "No changes detected" in captured.out
+
+
+def test_export_diff_requires_baseline_commit(session_dir):
+    session_data = export_diff.load_sessions(session_dir.parent)[0][1]
+    session_data.baseline_commit_sha = ""
+
+    try:
+        export_diff.export_diff(session_dir, "repo-path", session_data)
+    except ValueError as exc:
+        assert "missing a baseline commit SHA" in str(exc)
+    else:
+        raise AssertionError("Expected export_diff() to reject sessions without a baseline commit SHA.")
 
 
 def test_main_no_sessions(monkeypatch, capsys, tmp_path):

@@ -16,15 +16,18 @@ FAILURE_TAGS_PATH = ROOT_DIR / "config" / "failure_tags.yaml"
 
 
 def load_sessions(sessions_dir: str | Path):
+    """Load all saved sessions available for review."""
     return load_session_records(Path(sessions_dir))
 
 
 def display_sessions(sessions) -> None:
+    """Print the list of sessions that can be reviewed."""
     for idx, (session_id, session_data) in enumerate(sessions, start=1):
         print(f"{idx}. {session_id} - {session_data.task_title}")
 
 
 def get_user_choice(sessions):
+    """Prompt until the user selects a valid session number to review."""
     while True:
         try:
             choice = int(input("Enter the number of the session to review: "))
@@ -36,6 +39,7 @@ def get_user_choice(sessions):
 
 
 def display_session_details(session_data) -> None:
+    """Print the key session metadata reviewers need before entering a verdict."""
     print("\nSession Details:")
     print(f"Session ID: {session_data.session_id}")
     print(f"Task Title: {session_data.task_title}")
@@ -50,10 +54,12 @@ def display_session_details(session_data) -> None:
 
 
 def load_allowed_failure_tags() -> set[str]:
+    """Load the configured failure tags that reviewers are allowed to assign."""
     return set(parse_simple_yaml_list(FAILURE_TAGS_PATH))
 
 
 def prompt_for_failure_tags() -> list[str]:
+    """Prompt for failure tags and reject values outside the configured allowlist."""
     allowed_tags = load_allowed_failure_tags()
     while True:
         failure_tags_input = input("Enter the failure tags as a comma separated list (optional): ").strip()
@@ -65,6 +71,7 @@ def prompt_for_failure_tags() -> list[str]:
 
 
 def get_user_input():
+    """Collect a validated review verdict, score, tags, and optional notes summary."""
     verdict = input(f"Enter the verdict ({', '.join(VERDICTS)}): ").strip().lower()
     while verdict not in VERDICTS:
         print(f"Invalid verdict. Please choose from {', '.join(VERDICTS)}.")
@@ -82,6 +89,7 @@ def get_user_input():
 
 
 def update_session(session_path: str | Path, verdict: str, score: int, failure_tags: list[str], notes_summary: str) -> None:
+    """Persist review fields back to the selected session's metadata file."""
     session_dir = Path(session_path)
     session_data = load_session_record(session_dir)
     session_data.verdict = verdict
@@ -92,6 +100,7 @@ def update_session(session_path: str | Path, verdict: str, score: int, failure_t
 
 
 def main() -> None:
+    """Run the interactive review flow for an existing session."""
     if not SESSIONS_DIR.exists():
         print(f"Error: No sessions directory found at {SESSIONS_DIR}.")
         return

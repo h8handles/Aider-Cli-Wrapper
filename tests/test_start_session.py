@@ -43,9 +43,11 @@ def test_build_session_record_includes_prompt_preview(monkeypatch):
         task_type="bugfix",
         expected_scope=["scripts/export_diff.py"],
         model_name="gpt-4.1",
+        baseline_commit_sha="abc123def456",
     )
 
     assert session.repo_name == Path(start_session.ROOT_DIR).name
+    assert session.baseline_commit_sha == "abc123def456"
     assert "preserve imports" in session.prompt_preview
     assert "scripts/export_diff.py" in session.prompt_preview
 
@@ -57,6 +59,7 @@ def test_create_session_creates_session_files(tmp_path, monkeypatch):
     monkeypatch.setattr(start_session, "TEMPLATE_PATH", template_path)
     monkeypatch.setattr(start_session, "SESSIONS_DIR", tmp_path / "sessions")
     monkeypatch.setattr(start_session, "load_rules", lambda: ["prefer scoped changes"])
+    monkeypatch.setattr(start_session, "get_repo_baseline_commit", lambda _: "abc123def456")
 
     session_dir, session = start_session.create_session(
         "Test Task",
@@ -66,8 +69,10 @@ def test_create_session_creates_session_files(tmp_path, monkeypatch):
     )
 
     assert session.task_title == "Test Task"
+    assert session.baseline_commit_sha == "abc123def456"
     session_json = json.loads((session_dir / "session.json").read_text(encoding="utf-8"))
     assert session_json["task_title"] == "Test Task"
+    assert session_json["baseline_commit_sha"] == "abc123def456"
     assert session_json["expected_scope"] == ["scripts/export_diff.py", "scripts/review_session.py"]
 
 
@@ -80,6 +85,7 @@ def test_main_creates_session_files(tmp_path, monkeypatch):
     monkeypatch.setattr(start_session, "TEMPLATE_PATH", template_path)
     monkeypatch.setattr(start_session, "SESSIONS_DIR", tmp_path / "sessions")
     monkeypatch.setattr(start_session, "load_rules", lambda: ["prefer scoped changes"])
+    monkeypatch.setattr(start_session, "get_repo_baseline_commit", lambda _: "abc123def456")
 
     start_session.main()
 
@@ -89,5 +95,6 @@ def test_main_creates_session_files(tmp_path, monkeypatch):
 
     session_json = json.loads((session_dir / "session.json").read_text(encoding="utf-8"))
     assert session_json["task_title"] == "Test Task"
+    assert session_json["baseline_commit_sha"] == "abc123def456"
     assert session_json["expected_scope"] == ["scripts/export_diff.py", "scripts/review_session.py"]
     assert "prefer scoped changes" in (session_dir / "prompt.txt").read_text(encoding="utf-8")
