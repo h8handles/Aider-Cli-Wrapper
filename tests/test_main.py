@@ -1,6 +1,7 @@
 import json
 
 import main
+from scripts.session_utils import read_json
 
 
 def test_build_parser_includes_expected_subcommands():
@@ -130,7 +131,7 @@ def test_handle_export_diff_uses_selected_session_id(monkeypatch, sessions_dir, 
     args = parser.parse_args(["export-diff", "--session-id", "session_b"])
 
     session_file = sessions_dir / "session_b" / "session.json"
-    payload = main.export_diff.read_json(session_file)
+    payload = read_json(session_file)
     payload["repo_path"] = str(tmp_path)
     session_file.write_text(json.dumps(payload), encoding="utf-8")
 
