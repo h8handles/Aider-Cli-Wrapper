@@ -392,7 +392,7 @@ The wrapper is being designed to reduce repeated bad runs by learning from previ
 
 Known next improvements for the wrapper:
 
-- CLI flags for non-interactive use
+- consolidate the workflow into a single primary entry point.
 - automatic diff export after runs
 - stronger validation for session inputs and scope paths
 - richer reporting based on run artifacts and review outcomes
