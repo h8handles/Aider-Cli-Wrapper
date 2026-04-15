@@ -31,6 +31,37 @@ def test_run_session_fails_when_aider_is_missing(monkeypatch, capsys, session_di
     assert "Could not find the 'aider' executable" in captured.out
 
 
+def test_run_session_rejects_missing_expected_scope_files(monkeypatch, capsys, session_dir, tmp_path):
+    session_data = run_aider_session.load_session_record(session_dir)
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    session_data.repo_path = str(repo_path)
+
+    monkeypatch.setattr(
+        run_aider_session,
+        "resolve_aider_executable",
+        lambda: (_ for _ in ()).throw(AssertionError("aider should not be resolved when scope validation fails")),
+    )
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("subprocess.run should not be called when scope validation fails")),
+    )
+
+    exit_code = run_aider_session.run_session(session_dir, session_data)
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "Expected scope file(s) were not found: scripts/export_diff.py" in captured.out
+    assert not (session_dir / "aider_run.json").exists()
+    assert not (session_dir / "aider_stdout.txt").exists()
+    assert not (session_dir / "aider_stderr.txt").exists()
+
+    session_payload = json.loads((session_dir / "session.json").read_text(encoding="utf-8"))
+    assert session_payload["last_run_exit_code"] is None
+    assert session_payload["last_run_command"] == []
+
+
 def test_run_session_saves_artifacts(monkeypatch, session_dir, tmp_path):
     session_data = run_aider_session.load_session_record(session_dir)
     repo_path = tmp_path / "repo"
@@ -61,6 +92,36 @@ def test_run_session_saves_artifacts(monkeypatch, session_dir, tmp_path):
     session_payload = json.loads((session_dir / "session.json").read_text(encoding="utf-8"))
     assert session_payload["last_run_exit_code"] == 0
     assert session_payload["model_name"] == "gpt-4.1"
+
+
+def test_run_session_records_oserror_as_failed_run(monkeypatch, capsys, session_dir, tmp_path):
+    session_data = run_aider_session.load_session_record(session_dir)
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    (repo_path / "scripts").mkdir()
+    (repo_path / "scripts" / "export_diff.py").write_text("print('ok')\n", encoding="utf-8")
+    session_data.repo_path = str(repo_path)
+
+    monkeypatch.setattr(run_aider_session, "resolve_aider_executable", lambda: "aider")
+    monkeypatch.setattr(run_aider_session, "DEFAULT_CONFIG_PATH", tmp_path / ".aider.config.yaml")
+    run_aider_session.DEFAULT_CONFIG_PATH.write_text("read:\n  - .aider.rules.md\n", encoding="utf-8")
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("spawn failed")))
+
+    exit_code = run_aider_session.run_session(session_dir, session_data)
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "Aider run failed with exit code 127" in captured.out
+    assert (session_dir / "aider_stdout.txt").read_text(encoding="utf-8") == ""
+    assert "spawn failed" in (session_dir / "aider_stderr.txt").read_text(encoding="utf-8")
+
+    run_payload = json.loads((session_dir / "aider_run.json").read_text(encoding="utf-8"))
+    assert run_payload["exit_code"] == 127
+    assert run_payload["cwd"] == str(repo_path)
+
+    session_payload = json.loads((session_dir / "session.json").read_text(encoding="utf-8"))
+    assert session_payload["last_run_exit_code"] == 127
+    assert session_payload["last_run_command"]
 
 
 def test_main_returns_runner_exit_code(monkeypatch, sessions_dir):
